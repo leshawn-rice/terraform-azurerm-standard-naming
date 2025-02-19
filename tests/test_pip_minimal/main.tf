@@ -1,0 +1,10 @@
+module "test_pip_minimal" {
+  source          = "../../"
+  resource_type   = "publicip"  # maps to "pip"
+  application     = ""
+  workload        = ""
+  environment     = ""
+  location        = ""
+  business_unit   = ""
+  instance_number = ""
+}

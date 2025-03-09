@@ -1176,7 +1176,7 @@ locals {
   # Special handling lists – define resource types that omit certain segments
   ######################################################################
   # Resources that generally are not instanced (i.e. don’t require an instance number)
-  non_instanced_resource_types = [
+  no_instance_resource_types = [
     "vnet", # Virtual Network – typically one per environment
     "cr",   # Container Registry – usually one per team/environment
     "rg",   # Resource Group – a global container
@@ -1190,7 +1190,7 @@ locals {
   ]
 
   # Resources that aren’t region-specific (e.g. resources that exist at a global level)
-  non_regioned_resource_types = [
+  no_region_resource_types = [
     "bp",     # Blueprint – a global definition (even if assignments are applied regionally)
     "cr",     # Container Registry - global scope
     "mg",     # Management Group
@@ -1213,7 +1213,7 @@ locals {
   ]
 
   # Resources that should not include delimiters because their naming pattern is fixed
-  non_delimited_resource_types = [
+  no_delimiter_resource_types = [
     "st",     # Storage Account – must be all lowercase without hyphens
     "cr",     # Container Registry – similar restrictions as storage accounts
     "cosmos", # Cosmos DB account – must be lowercase with no delimiters
@@ -1228,7 +1228,7 @@ locals {
   ######################################################################
   # Process input variables safely and transform to lowercase for consistency
   ######################################################################
-  resourceTypeInput = var.resource_type != null ? lower(trimspace(var.resource_type)) : ""
+  resourceTypeInput = lower(trimspace(var.resource_type))
   resourceAbbr      = lookup(local.resource_abbreviations, local.resourceTypeInput, local.resourceTypeInput)
 
   regionInput = var.location != null ? (
@@ -1258,19 +1258,19 @@ locals {
   ######################################################################
   # Determine delimiter based on resource type restrictions (e.g. storage accounts)
   ######################################################################
-  delimiter = !contains(local.non_delimited_resource_types, local.resourceAbbr) ? "-" : ""
+  delimiter = !contains(local.no_delimiter_resource_types, local.resourceAbbr) ? "-" : ""
 
   ######################################################################
   # Build each naming segment according to Microsoft’s recommended order
   #
   # Recommended Order:
-  #   {Resource Abbr}-{Application}-{Workload (optional)}-{Environment}-{Region}-{Instance (if applicable)}-{Business Unit (optional)}
+  #   {Resource Abbr}-{Business Unit (optional)-{Application (optional)}-{Workload (optional)}-{Environment (optional)}-{Region (optional)}-{Instance (optional)}}
   ######################################################################
   applicationSection  = local.applicationInput != "" ? "${local.delimiter}${local.applicationInput}" : ""
   workloadSection     = local.workloadInput != "" ? "${local.delimiter}${local.workloadInput}" : ""
   environmentSection  = local.environmentInput != "" ? "${local.delimiter}${local.environmentInput}" : ""
-  regionSection       = !contains(local.non_regioned_resource_types, local.resourceAbbr) && local.regionInput != "" ? "${local.delimiter}${lookup(local.region_map, local.regionInput, local.regionInput)}" : ""
-  instanceSection     = !contains(local.non_instanced_resource_types, local.resourceAbbr) && local.instanceNumberInput != "" ? "${local.delimiter}${local.instanceNumberInput}" : ""
+  regionSection       = !contains(local.no_region_resource_types, local.resourceAbbr) && local.regionInput != "" ? "${local.delimiter}${lookup(local.region_map, local.regionInput, local.regionInput)}" : ""
+  instanceSection     = !contains(local.no_instance_resource_types, local.resourceAbbr) && local.instanceNumberInput != "" ? "${local.delimiter}${local.instanceNumberInput}" : ""
   businessUnitSection = local.businessUnitInput != "" ? "${local.delimiter}${local.businessUnitInput}" : ""
 
   ######################################################################
@@ -1278,63 +1278,96 @@ locals {
   ######################################################################
   # Final naming convention:
   #   {resourceAbbr}{applicationSection}{workloadSection}{environmentSection}{regionSection}{instanceSection}{businessUnitSection}
-  name = "${local.resourceAbbr}${local.applicationSection}${local.workloadSection}${local.environmentSection}${local.regionSection}${local.instanceSection}${local.businessUnitSection}"
+  name = "${local.resourceAbbr}${local.businessUnitSection}${local.applicationSection}${local.workloadSection}${local.environmentSection}${local.regionSection}${local.instanceSection}"
 
   ######################################################################
   # Define a validation map for final name constraints.
   # Each key is a resource abbreviation and the value is an object containing:
+  #   - min_length: minimum allowed length
   #   - max_length: maximum allowed length
   #   - pattern: a regex the name must match
   ######################################################################
 
+  # bk = bookmark
+  regexp_patterns = {
+    alpha_alphanumeric_hyphen_bk      = "^[a-zA-Z]{1}[a-zA-Z0-9-]*[a-zA-Z0-9]{1}$"     # start with alpha, alphanumeric + hyphen, end with alphanumeric e.g. h-e1
+    alphanumeric_hyphen_bk            = "^[a-zA-Z0-9]{1}[a-zA-Z0-9-]*[a-zA-Z0-9]{1}$"  # start with alphanumeric, alphanumeric + hyphen, end with alphanumeric e.g. 01-12
+    alphanumeric_hyphen_underscore_bk = "^[a-zA-Z0-9]{1}[a-zA-Z0-9-_]*[a-zA-Z0-9]{1}$" # start with alphanumeric, alphanumeric + hyphen + underscore, end with alphanumeric e.g. 01-1_A
+  }
+
   # TODO: Validate all these validations
   validation_map = {
-    # Azure AD Domain Services (Microsoft.CognitiveServices/accounts with kind:AIDS)
+    /*
+    Azure AD Domain Services (Microsoft.CognitiveServices/accounts with kind:AIDS)
+    2-64 characters
+    alphanumerics and hyphens
+    must start and end with an alphanumeric
+    */
     aadds = {
-      max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Dedicated Host (Microsoft.Compute/hostGroups)
-    adh = {
+      min_length = 2,
       max_length = 64,
-      pattern    = "^[a-z0-9-]+$"
+      pattern    = local.regexp_patterns.alphanumeric_hyphen_bk
     }
 
-    # Azure Data Explorer (Microsoft.Kusto/clusters)
-    adx = {
-      max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Front Door (Microsoft.Cdn/profiles or Microsoft.Network/frontDoors)
+    /*
+    Front Door (Microsoft.Cdn/profiles or Microsoft.Network/frontDoors)
+    5-64 characters
+    alphanumerics and hyphens
+    must start and end with an alphanumeric
+    */
     afd = {
+      min_length = 5,
       max_length = 64,
-      pattern    = "^[a-z0-9-]+$"
+      pattern    = local.regexp_patterns.alphanumeric_hyphen_bk
     }
 
-    # Azure NetApp Files (Microsoft.NetApp/netAppAccounts)
+    /*
+    Azure NetApp Files (Microsoft.NetApp/netAppAccounts);
+    1-128 characters
+    alphanumerics, hyphens, and underscores
+    must start and end with an alphanumeric
+    */
     anf = {
+      min_length = 1,
       max_length = 128,
-      pattern    = "^[a-zA-Z0-9-_]+$"
+      pattern    = "^[a-zA-Z0-9]{1}[a-zA-Z0-9-_]*[a-zA-Z0-9]{1}$" # alphanumeric_hyphen_underscore_bk
     }
 
-    # Microsoft.ApiManagement service: 1–50 characters; alphanumerics and hyphens; must start with a letter and end with alphanumeric.
+    /*
+    Api Management Service (Microsoft.ApiManagement/service)
+    1–50 characters
+    alphanumerics and hyphens
+    must start with a letter and end with alphanumeric.
+    */
     apim = {
       max_length = 50,
-      pattern    = "^[a-zA-Z]{1}[a-zA-Z0-9-]*[a-zA-Z0-9]$"
+      pattern    = "^[a-zA-Z]{1}[a-zA-Z0-9-]*[a-zA-Z0-9]{1}$" # alpha_alphanumeric_hyphen_bk
     }
 
-    # App Service (Microsoft.Web/sites)
+    /*
+    App Service (Microsoft.Web/sites)
+    1–50 characters
+    alphanumerics and hyphens
+    must start with a letter and end with alphanumeric.
+    */
     app = {
-      max_length = 60, # Typically 2–60 characters
-      pattern    = "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$"
+      min_length = 2,
+      max_length = 60,
+      pattern    = local.regexp_patterns.alphanumeric_hyphen_bk
     }
 
-    # Application Insights (Microsoft.Insights/components)
+    /*
+    Application Insights (Microsoft.Insights/components)
+    1-260 characters
+    Can't use:
+      :<>+/&%\?| or control characters
+
+    Can't end with space or period.
+    */
     appinsights = {
+      min_length = 1,
       max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
+      pattern    = "^[^%&\\?/^]*[^%&\\?/. ^]$"
     }
 
     # Microsoft.AnalysisServices servers: resource group scope; 3–63 characters; lowercase letters and numbers; must start with a lowercase letter

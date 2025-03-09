@@ -15,5 +15,5 @@ output "is_name_valid" {
 
 output "name" {
   value       = local.name
-  description = "The final generated resource name."
+  description = "The final generated resource name in the format `<resource_type>-<business-unit>-<application>-<workload>-<environment>-<location>-<instance_number>`."
 }

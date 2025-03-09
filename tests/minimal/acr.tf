@@ -1,6 +1,6 @@
-module "test_st_minimal" {
+module "test_acr_minimal" {
   source          = "../../"
-  resource_type   = "storageaccount"  # maps to "st"
+  resource_type   = "containerregistry" # maps to "acr"
   application     = ""
   workload        = ""
   environment     = ""

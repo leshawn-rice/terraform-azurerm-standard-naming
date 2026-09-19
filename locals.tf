@@ -1123,8 +1123,8 @@ locals {
     ##########################################
 
     # Azure StorSimple
-    "azurestorSimple"  = "ssimp"
-    "azure storSimple" = "ssimp"
+    "azurestorsimple"  = "ssimp"
+    "azure storsimple" = "ssimp"
     "ssimp"            = "ssimp"
 
     # Backup Vault name
@@ -1177,16 +1177,16 @@ locals {
   ######################################################################
   # Resources that generally are not instanced (i.e. don’t require an instance number)
   no_instance_resource_types = [
-    "vnet", # Virtual Network – typically one per environment
-    "cr",   # Container Registry – usually one per team/environment
-    "rg",   # Resource Group – a global container
-    "mg",   # Management Group – global across subscriptions
-    "pol",  # Policy – defined once per scope
-    "ase",  # App Service Environment – deployed as a single environment
-    "dce",  # Data Collection Endpoint – usually a singular configuration
-    "dns",  # DNS Zone – typically unique per domain
-    "app",  # App Service – typically unique per domain
-    "as",   # Azure Analysis Services – typically unique per domain
+    "vnet",   # Virtual Network – typically one per environment
+    "cr",     # Container Registry – usually one per team/environment
+    "rg",     # Resource Group – a global container
+    "mg",     # Management Group – global across subscriptions
+    "policy", # Policy – defined once per scope
+    "ase",    # App Service Environment – deployed as a single environment
+    "dce",    # Data Collection Endpoint – usually a singular configuration
+    "dns",    # DNS Zone – typically unique per domain
+    "app",    # App Service – typically unique per domain
+    "as",     # Azure Analysis Services – typically unique per domain
   ]
 
   # Resources that aren’t region-specific (e.g. resources that exist at a global level)
@@ -1202,7 +1202,7 @@ locals {
     "bpa",    # Blueprint Assignment – typically not tied to a specific region
     "dls",    # Data Lake Storage Account - global scope
     "iot",    # IoT Hub - global scope
-    "pol",    # Policy
+    "policy", # Policy
     "apim",   # API Management Service Instance - global scope
     "func",   # Function App - global scope
     "sbns",   # Service Bus Namespace - global scope
@@ -1214,15 +1214,24 @@ locals {
 
   # Resources that should not include delimiters because their naming pattern is fixed
   no_delimiter_resource_types = [
-    "st",     # Storage Account – must be all lowercase without hyphens
-    "cr",     # Container Registry – similar restrictions as storage accounts
-    "cosmos", # Cosmos DB account – must be lowercase with no delimiters
-    "media",  # Media Services - must be lowercase letters and numbers
-    "as",     # Analysis Services Servers - must be lowercase letters and numbers 
-    "ba",     # Batch Accounts - must be lowercase letters and numbers
-    "dla",    # Data Lake Analytics Account - must be lowercase letters and numbers
-    "dls",    # Data Lake Analytics Store Account - must be lowercase letters and numbers
-    "synplh", # Synapse Private Link hub - must be lowercase letters and numbers
+    "as",       # Analysis Services server - alphanumerics only
+    "ba",       # Batch account - lowercase letters and numbers
+    "cr",       # Container Registry - alphanumerics only
+    "cosmos",   # Cosmos DB account - hyphens are legal, but the house style is unbroken
+    "dec",      # Data Explorer cluster - lowercase letters and numbers
+    "dla",      # Data Lake Analytics account - lowercase letters and numbers
+    "dls",      # Data Lake Store account - lowercase letters and numbers
+    "fdfp",     # Front Door firewall policy - alphanumerics only
+    "gal",      # Compute gallery - alphanumerics, underscores and periods; no hyphens
+    "np",       # AKS user node pool - alphanumerics only
+    "npsystem", # AKS system node pool - alphanumerics only
+    "pbi",      # Power BI Embedded capacity - lowercase letters and numbers
+    "st",       # Storage Account - lowercase letters and numbers
+    "stvm",     # VM Storage Account - lowercase letters and numbers
+    "syndp",    # Synapse SQL dedicated pool - hyphens are explicitly disallowed
+    "synplh",   # Synapse private link hub - alphanumerics only
+    "synsp",    # Synapse Spark pool - letters and numbers only
+    "waf",      # Web Application Firewall policy - alphanumerics only
   ]
 
   ######################################################################
@@ -1277,353 +1286,1493 @@ locals {
   # Assemble the final resource name using the defined segments.
   ######################################################################
   # Final naming convention:
-  #   {resourceAbbr}{applicationSection}{workloadSection}{environmentSection}{regionSection}{instanceSection}{businessUnitSection}
+  #   {resourceAbbr}{businessUnitSection}{applicationSection}{workloadSection}{environmentSection}{regionSection}{instanceSection}
   name = "${local.resourceAbbr}${local.businessUnitSection}${local.applicationSection}${local.workloadSection}${local.environmentSection}${local.regionSection}${local.instanceSection}"
 
   ######################################################################
-  # Define a validation map for final name constraints.
-  # Each key is a resource abbreviation and the value is an object containing:
-  #   - min_length: minimum allowed length
-  #   - max_length: maximum allowed length
-  #   - pattern: a regex the name must match
+  # Named regex patterns used by the validation map below.
+  #
+  # Names are always lowercased before validation, so every class is
+  # written over [a-z0-9] rather than [a-zA-Z0-9].
   ######################################################################
-
-  # bk = bookmark
   regexp_patterns = {
-    alpha_alphanumeric_hyphen_bk      = "^[a-zA-Z]{1}[a-zA-Z0-9-]*[a-zA-Z0-9]{1}$"     # start with alpha, alphanumeric + hyphen, end with alphanumeric e.g. h-e1
-    alphanumeric_hyphen_bk            = "^[a-zA-Z0-9]{1}[a-zA-Z0-9-]*[a-zA-Z0-9]{1}$"  # start with alphanumeric, alphanumeric + hyphen, end with alphanumeric e.g. 01-12
-    alphanumeric_hyphen_underscore_bk = "^[a-zA-Z0-9]{1}[a-zA-Z0-9-_]*[a-zA-Z0-9]{1}$" # start with alphanumeric, alphanumeric + hyphen + underscore, end with alphanumeric e.g. 01-1_A
+    alnum                                 = "^[a-z0-9]+$"
+    alnum_dot_paren_us_hyphen             = "^[a-z0-9._()-]+$"
+    alnum_dot_paren_us_hyphen_ends_alnum  = "^[a-z0-9](?:[a-z0-9._()-]*[a-z0-9])?$"
+    alnum_dot_paren_us_hyphen_start_alnum = "^[a-z0-9][a-z0-9._()-]*$"
+    alnum_dot_slash_us_hyphen_ends_alnum  = "^[a-z0-9](?:[a-z0-9./_-]*[a-z0-9])?$"
+    alnum_dot_us_ends_alnum               = "^[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$"
+    alnum_dot_us_hyphen                   = "^[a-z0-9._-]+$"
+    alnum_dot_us_hyphen_end_alnum_us      = "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9_])?$"
+    alnum_dot_us_hyphen_ends_alnum        = "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$"
+    alnum_dot_us_hyphen_start_alnum       = "^[a-z0-9][a-z0-9._-]*$"
+    alnum_hyphen                          = "^[a-z0-9-]+$"
+    alnum_hyphen_end_alnum                = "^[a-z0-9-]*[a-z0-9]$"
+    alnum_hyphen_ends_alnum               = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+    alnum_hyphen_start_alnum              = "^[a-z0-9][a-z0-9-]*$"
+    alnum_hyphen_start_letter             = "^[a-z][a-z0-9-]*$"
+    alnum_hyphen_start_letter_end_alnum   = "^[a-z](?:[a-z0-9-]*[a-z0-9])?$"
+    alnum_space_dot_hyphen                = "^[a-z0-9 .-]+$"
+    alnum_start_letter                    = "^[a-z][a-z0-9]*$"
+    alnum_us_hyphen                       = "^[a-z0-9_-]+$"
+    alnum_us_hyphen_ends_alnum            = "^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$"
+    alnum_us_hyphen_start_alnum           = "^[a-z0-9][a-z0-9_-]*$"
+    dns_labels                            = "^[a-z0-9-]+(\\.[a-z0-9-]+)*$"
   }
 
-  # TODO: Validate all these validations
+  ######################################################################
+  # Per-resource-type name constraints.
+  #
+  # Sourced from 'Naming rules and restrictions for Azure resources':
+  # https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules
+  #
+  # Each entry cites the resource provider entity it came from. Entries
+  # marked 'no published rule' cover resources absent from that article;
+  # they take the rule of the closest documented sibling, which is noted.
+  ######################################################################
   validation_map = {
-    /*
-    Azure AD Domain Services (Microsoft.CognitiveServices/accounts with kind:AIDS)
-    2-64 characters
-    alphanumerics and hyphens
-    must start and end with an alphanumeric
-    */
-    aadds = {
-      min_length = 2,
-      max_length = 64,
-      pattern    = local.regexp_patterns.alphanumeric_hyphen_bk
-    }
-
-    /*
-    Front Door (Microsoft.Cdn/profiles or Microsoft.Network/frontDoors)
-    5-64 characters
-    alphanumerics and hyphens
-    must start and end with an alphanumeric
-    */
-    afd = {
-      min_length = 5,
-      max_length = 64,
-      pattern    = local.regexp_patterns.alphanumeric_hyphen_bk
-    }
-
-    /*
-    Azure NetApp Files (Microsoft.NetApp/netAppAccounts);
-    1-128 characters
-    alphanumerics, hyphens, and underscores
-    must start and end with an alphanumeric
-    */
-    anf = {
-      min_length = 1,
-      max_length = 128,
-      pattern    = "^[a-zA-Z0-9]{1}[a-zA-Z0-9-_]*[a-zA-Z0-9]{1}$" # alphanumeric_hyphen_underscore_bk
-    }
-
-    /*
-    Api Management Service (Microsoft.ApiManagement/service)
-    1–50 characters
-    alphanumerics and hyphens
-    must start with a letter and end with alphanumeric.
-    */
-    apim = {
-      max_length = 50,
-      pattern    = "^[a-zA-Z]{1}[a-zA-Z0-9-]*[a-zA-Z0-9]{1}$" # alpha_alphanumeric_hyphen_bk
-    }
-
-    /*
-    App Service (Microsoft.Web/sites)
-    1–50 characters
-    alphanumerics and hyphens
-    must start with a letter and end with alphanumeric.
-    */
-    app = {
-      min_length = 2,
-      max_length = 60,
-      pattern    = local.regexp_patterns.alphanumeric_hyphen_bk
-    }
-
-    /*
-    Application Insights (Microsoft.Insights/components)
-    1-260 characters
-    Can't use:
-      :<>+/&%\?| or control characters
-
-    Can't end with space or period.
-    */
-    appinsights = {
-      min_length = 1,
-      max_length = 50,
-      pattern    = "^[^%&\\?/^]*[^%&\\?/. ^]$"
-    }
-
-    # Microsoft.AnalysisServices servers: resource group scope; 3–63 characters; lowercase letters and numbers; must start with a lowercase letter
-    as = {
-      max_length = 63,
-      pattern    = "^[a-z]{1}[a-z0-9]{2,}$"
-    }
-
-    # Azure Spring Cloud (Microsoft.AppPlatform/spring)
-    asc = {
-      max_length = 32,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # App Service Plan (Microsoft.Web/serverFarms)
-    asp = {
-      max_length = 60,
-      pattern    = "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$"
-    }
-
-    # Azure Virtual Desktop (Microsoft.DesktopVirtualization/hostPools)
-    avd = {
-      max_length = 64,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Backup Vault (Microsoft.RecoveryServices/vaults)
-    bak = {
-      max_length = 50,
-      pattern    = "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$"
-    }
-
-    # Bastion (Microsoft.Network/bastionHosts)
-    bastion = {
-      max_length = 80,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Blueprint (Microsoft.Blueprint/blueprints)
-    bp = {
-      max_length = 90,
-      pattern    = "^[a-z0-9-_]+$"
-    }
-
-    # Blueprint Assignment (Microsoft.Blueprint/blueprints/artifacts)
-    bpa = {
-      max_length = 90,
-      pattern    = "^[a-z0-9-_]+$"
-    }
-
-    # CDN (Microsoft.Cdn/profiles)
-    cdn = {
-      max_length = 260,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Cognitive Services (Microsoft.CognitiveServices/accounts)
-    cogs = {
-      max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Cosmos DB (Microsoft.DocumentDB/databaseAccounts)
-    cosmos = {
-      max_length = 44,
-      pattern    = "^[a-z0-9]+$" # Only lowercase letters and numbers
-    }
-
-    # Container Registry (Microsoft.ContainerRegistry)
-    cr = {
-      max_length = 50,
-      pattern    = "^[a-z0-9]+$" # 5–50 characters, lowercase alphanumerics only
-    }
-
-    # Fallback default for any resource type not explicitly listed
+    # Fallback for resource types with no entry below.
     default = {
-      max_length = 63,
-      pattern    = "^[a-z0-9-]+$"
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
     }
 
-    # DNS (Microsoft.Network/dnsZones)
-    dns = {
-      max_length = 63,
-      pattern    = "^[a-z0-9-]+(\\.[a-z0-9-]+)*$"
+    ##### Compute & General #####
+
+    # App Service (Microsoft.Web/sites)
+    app = {
+      min_length = 2
+      max_length = 60
+      pattern    = local.regexp_patterns.alnum_hyphen
     }
 
-    # Event Hub (Microsoft.EventHub/namespaces/eventHubs)
-    eh = {
-      max_length = 256,
-      pattern    = "^[a-z0-9-]+$"
+    # App Service Plan (Microsoft.Web/serverfarms)
+    asp = {
+      min_length = 1
+      max_length = 60
+      pattern    = local.regexp_patterns.alnum_hyphen
     }
 
-    # Function App (Microsoft.Web/sites with functions)
+    # Availability Set (Microsoft.Compute/availabilitySets)
+    avail = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Cloud Service (Microsoft.Compute/cloudservices)
+    cld = {
+      min_length = 1
+      max_length = 15
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Managed Disk (data) (Microsoft.Compute/disks)
+    disk = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Function App (Microsoft.Web/sites)
     func = {
-      max_length = 60,
-      pattern    = "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$"
+      min_length = 2
+      max_length = 60
+      pattern    = local.regexp_patterns.alnum_hyphen
     }
 
-    # Firewall (Microsoft.Network/azureFirewalls)
-    fw = {
-      max_length = 80,
-      pattern    = "^[a-z0-9-]+$"
+    # Gallery (Microsoft.Compute/galleries)
+    gal = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_ends_alnum
     }
 
-    # IoT Hub (Microsoft.Devices/IotHubs)
-    iot = {
-      max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
+    # Image Template (Microsoft.Compute/images)
+    it = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
     }
 
-    # Log Analytics Workspace (Microsoft.OperationalInsights/workspaces)
-    law = {
-      max_length = 63,
-      pattern    = "^[a-z0-9-]+$"
+    # Virtual Machine Maintenance Configuration - no published rule; follows Maintenance/maintenanceConfigurations
+    mc = {
+      min_length = 1
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
     }
 
-    # Logic App (Microsoft.Logic/workflows)
-    logic = {
-      max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Media Services (Microsoft.Media/mediaservices)
-    media = {
-      max_length = 24,
-      pattern    = "^[a-z0-9]+$"
-    }
-
-    # Migrate (Microsoft.Migrate/assessmentProjects)
-    migrate = {
-      max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Management Group (Microsoft.Management/managementGroups)
-    mg = {
-      max_length = 90,
-      pattern    = "^[a-zA-Z0-9-_().]+$"
-    }
-
-    # Monitor (Microsoft.Insights components, Azure Monitor)
-    monitor = {
-      max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
-    }
-
-    # Network Interface (Microsoft.Compute)
+    # Network Interface (Microsoft.Network/networkInterfaces)
     nic = {
-      max_length = 80,
-      pattern    = "^[a-z0-9-._]+$"
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Managed Disk (OS) (Microsoft.Compute/disks)
+    osdisk = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Public IP (Microsoft.Network/publicIPAddresses)
+    pip = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Restore Point Collection - no published rule for Compute/restorePointCollections; follows Compute/disks
+    rpc = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Snapshot (Microsoft.Compute/snapshots)
+    snap = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Storage Account (Microsoft.Storage/storageAccounts)
+    st = {
+      min_length = 3
+      max_length = 24
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # VM Storage Account (Microsoft.Storage/storageAccounts)
+    stvm = {
+      min_length = 3
+      max_length = 24
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # Virtual Machine (Microsoft.Compute/virtualMachines)
+    vm = {
+      min_length = 1
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual Machine Scale Set (Microsoft.Compute/virtualMachineScaleSets)
+    vmss = {
+      min_length = 1
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual Network (Microsoft.Network/virtualNetworks)
+    vnet = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    ##### AI + Machine Learning #####
+
+    # Azure AI services (Microsoft.CognitiveServices/accounts)
+    ais = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Azure AI Video Indexer (Microsoft.CognitiveServices/accounts)
+    avi = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Bot service (Microsoft.BotService/botServices)
+    bot = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_start_alnum
+    }
+
+    # Content moderator (Microsoft.CognitiveServices/accounts)
+    cm = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Content safety (Microsoft.CognitiveServices/accounts)
+    cs = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Custom vision (prediction) (Microsoft.CognitiveServices/accounts)
+    cstv = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Custom vision (training) (Microsoft.CognitiveServices/accounts)
+    cstvt = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Computer vision (Microsoft.CognitiveServices/accounts)
+    cv = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Document intelligence (Microsoft.CognitiveServices/accounts)
+    di = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Face API (Microsoft.CognitiveServices/accounts)
+    face = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Health Insights (Microsoft.CognitiveServices/accounts)
+    hi = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Azure AI Studio hub (Microsoft.MachineLearningServices/workspaces)
+    hub = {
+      min_length = 3
+      max_length = 33
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Immersive reader (Microsoft.CognitiveServices/accounts)
+    ir = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Language service (Microsoft.CognitiveServices/accounts)
+    lang = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Azure Machine Learning workspace (Microsoft.MachineLearningServices/workspaces)
+    mlw = {
+      min_length = 3
+      max_length = 33
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Azure OpenAI Service (Microsoft.CognitiveServices/accounts)
+    oai = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Azure AI Studio project (Microsoft.MachineLearningServices/workspaces)
+    proj = {
+      min_length = 3
+      max_length = 33
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Speech service (Microsoft.CognitiveServices/accounts)
+    spch = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # AI Search - no published rule; follows Search/searchServices
+    srch = {
+      min_length = 2
+      max_length = 60
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Translator (Microsoft.CognitiveServices/accounts)
+    trsl = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    ##### Analytics and IoT #####
+
+    # Azure Data Factory (Microsoft.DataFactory/factories)
+    adf = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Azure Analysis Services server (Microsoft.AnalysisServices/servers)
+    as = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_start_letter
+    }
+
+    # Azure Stream Analytics (Microsoft.StreamAnalytics/streamingjobs)
+    asa = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Azure Databricks workspace (Microsoft.Databricks/workspaces)
+    dbw = {
+      min_length = 3
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Azure Data Explorer cluster (Microsoft.Kusto/clusters)
+    dec = {
+      min_length = 4
+      max_length = 22
+      pattern    = local.regexp_patterns.alnum_start_letter
+    }
+
+    # Azure Data Explorer cluster database (Microsoft.Kusto//clusters/databases)
+    dedb = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_space_dot_hyphen
+    }
+
+    # Data Lake Analytics account (Microsoft.DataLakeAnalytics/accounts)
+    dla = {
+      min_length = 3
+      max_length = 24
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # Data Lake Store account (Microsoft.DataLakeStore/accounts)
+    dls = {
+      min_length = 3
+      max_length = 24
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # Azure Digital Twin instance - no published rule; follows DigitalTwins/digitalTwinsInstances
+    dt = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Event Grid system topic (Microsoft.EventGrid/topics)
+    egst = {
+      min_length = 3
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Event Grid domain (Microsoft.EventGrid/domains)
+    evgd = {
+      min_length = 3
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Event Grid subscriptions (Microsoft.EventGrid/eventSubscriptions)
+    evgs = {
+      min_length = 3
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Event Grid topic (Microsoft.EventGrid/topics)
+    evgt = {
+      min_length = 3
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Event hub (Microsoft.EventHub/namespaces/eventhubs)
+    evh = {
+      min_length = 1
+      max_length = 256
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_ends_alnum
+    }
+
+    # Event Hubs namespace (Microsoft.EventHub/namespaces)
+    evhns = {
+      min_length = 6
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # HDInsight – Hadoop cluster (Microsoft.HDInsight/clusters)
+    hadoop = {
+      min_length = 3
+      max_length = 59
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # HDInsight – HBase cluster (Microsoft.HDInsight/clusters)
+    hbase = {
+      min_length = 3
+      max_length = 59
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # IoT hub (Microsoft.Devices/IotHubs)
+    iot = {
+      min_length = 3
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # HDInsight – Kafka cluster (Microsoft.HDInsight/clusters)
+    kafka = {
+      min_length = 3
+      max_length = 59
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # HDInsight – ML Services cluster (Microsoft.HDInsight/clusters)
+    mls = {
+      min_length = 3
+      max_length = 59
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
     }
 
     # Power BI Embedded (Microsoft.PowerBIDedicated/capacities)
     pbi = {
-      max_length = 63,
-      pattern    = "^[a-z0-9-]+$"
-    }
-    # Policy (Microsoft.Authorization/policyDefinitions)
-    pol = {
-      max_length = 60,
-      pattern    = "^[a-z0-9-]+$"
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_start_letter
     }
 
-    # Public IP (Microsoft.Network)
-    pip = {
-      max_length = 80,
-      pattern    = "^[a-z0-9-]+$"
+    # Provisioning services certificate (Microsoft.Devices/provisioningServices/certificates)
+    pcert = {
+      min_length = 1
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen
     }
 
-    # Resource Group (Microsoft.Resources/resourceGroups)
-    rg = {
-      max_length = 90,
-      pattern    = "^[a-zA-Z0-9-_().]+$"
+    # Provisioning services (Microsoft.Devices/provisioningServices)
+    provs = {
+      min_length = 3
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_end_alnum
     }
 
-    # Recovery Services Vault (Microsoft.RecoveryServices/vaults)
-    rsv = {
-      max_length = 50,
-      pattern    = "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$"
+    # HDInsight – Spark cluster (Microsoft.HDInsight/clusters)
+    spark = {
+      min_length = 3
+      max_length = 59
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
     }
 
-    # Service Bus (Microsoft.ServiceBus/namespaces)
-    sb = {
-      max_length = 50,
-      pattern    = "^[a-z0-9-]+$"
+    # HDInsight – Storm cluster (Microsoft.HDInsight/clusters)
+    storm = {
+      min_length = 3
+      max_length = 59
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
     }
 
-    # Cognitive Search (Microsoft.Search/searchServices)
-    search = {
-      max_length = 80,
-      pattern    = "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$"
+    # Azure Synapse Analytics SQL Dedicated Pool (Microsoft.Synapse/workspaces/sqlPools)
+    syndp = {
+      min_length = 1
+      max_length = 60
+      pattern    = local.regexp_patterns.alnum_dot_us_ends_alnum
     }
 
-    # Service Fabric (Microsoft.ServiceFabric/clusters)
+    # Azure Synapse Analytics private link hub (Microsoft.Synapse/privateLinkHubs)
+    synplh = {
+      min_length = 1
+      max_length = 45
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # Azure Synapse Analytics Spark Pool (Microsoft.Synapse/workspaces/bigDataPools)
+    synsp = {
+      min_length = 1
+      max_length = 15
+      pattern    = local.regexp_patterns.alnum_start_letter
+    }
+
+    # Azure Synapse Analytics workspaces (Microsoft.Synapse/workspaces)
+    synw = {
+      min_length = 1
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Time Series Insights environment (Microsoft.TimeSeriesInsights/environments)
+    tsi = {
+      min_length = 1
+      max_length = 90
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    ##### Compute and Web (Additional) #####
+
+    # Communication Services (Microsoft.Communication/communicationServices)
+    acs = {
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Azure Arc gateway - no published rule; follows HybridCompute/gateways
+    arcgw = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Azure Arc enabled Kubernetes cluster - no published rule; follows Kubernetes/connectedClusters
+    arck = {
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Azure Arc enabled server - no published rule; follows HybridCompute/machines
+    arcs = {
+      min_length = 1
+      max_length = 54
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # App Service environment - no published rule for Web/hostingEnvironments; follows Web/serverfarms
+    ase = {
+      min_length = 1
+      max_length = 60
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Batch accounts (Microsoft.Batch/batchAccounts)
+    ba = {
+      min_length = 3
+      max_length = 24
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # Disk encryption set (Microsoft.Compute/diskEncryptionSets)
+    des = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Hosting environment (for web apps) - no published rule for Web/hostingEnvironments; follows Web/serverfarms
+    host = {
+      min_length = 1
+      max_length = 60
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Azure Load Testing instance (Microsoft.LoadTestService/loadtests)
+    lt = {
+      min_length = 1
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_us_hyphen_ends_alnum
+    }
+
+    # Notification Hubs (Microsoft.NotificationHubs/namespaces/notificationHubs)
+    ntf = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_start_alnum
+    }
+
+    # Notification Hubs namespace (Microsoft.NotificationHubs/namespaces)
+    ntfns = {
+      min_length = 6
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Azure Arc private link scope - no published rule; follows HybridCompute/privateLinkScopes
+    pls = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Proximity placement group - no published rule; follows Compute/proximityPlacementGroups
+    ppg = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    ##### Containers #####
+
+    # AKS cluster (Microsoft.ContainerService/managedClusters)
+    aks = {
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_us_hyphen_ends_alnum
+    }
+
+    # Container apps (Microsoft.App/containerApps)
+    ca = {
+      min_length = 2
+      max_length = 32
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Container apps environment - no published rule for App/managedEnvironments; follows App/containerApps
+    cae = {
+      min_length = 2
+      max_length = 32
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Container instance (Microsoft.ContainerInstance/containerGroups)
+    ci = {
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Container registry (Microsoft.ContainerRegistry/registries)
+    cr = {
+      min_length = 5
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # AKS user node pool (Microsoft.ContainerService/managedClusters/agentPools)
+    np = {
+      min_length = 1
+      max_length = 12
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # AKS system node pool (Microsoft.ContainerService/managedClusters/agentPools)
+    npsystem = {
+      min_length = 1
+      max_length = 12
+      pattern    = local.regexp_patterns.alnum
+    }
+
+    # Service Fabric cluster (Microsoft.ServiceFabric/clusters)
     sf = {
-      max_length = 23,
-      pattern    = "^[a-z0-9-]+$"
+      min_length = 4
+      max_length = 23
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter
     }
 
-    # SignalR Service (Microsoft.SignalRService/SignalR)
-    signalr = {
-      max_length = 63,
-      pattern    = "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$"
+    # Service Fabric managed cluster - no published rule for ServiceFabric/managedClusters; follows ServiceFabric/clusters
+    sfmc = {
+      min_length = 4
+      max_length = 23
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
     }
 
-    # Storage Account (Microsoft.Storage)
-    st = {
-      max_length = 24,
-      pattern    = "^[a-z0-9]+$" # Must be lowercase, numbers only
+    ##### Databases #####
+
+    # Azure Cosmos DB for Apache Cassandra account (Microsoft.DocumentDB/databaseAccounts)
+    coscas = {
+      min_length = 3
+      max_length = 44
+      pattern    = local.regexp_patterns.alnum_hyphen_start_alnum
     }
 
-    # Subnet (Microsoft.Network; defined within a VNet)
-    sub = {
-      max_length = 80,
-      pattern    = "^[a-z0-9-]+$"
+    # Azure Cosmos DB for Apache Gremlin account (Microsoft.DocumentDB/databaseAccounts)
+    cosgrm = {
+      min_length = 3
+      max_length = 44
+      pattern    = local.regexp_patterns.alnum_hyphen_start_alnum
     }
 
-    # SQL Server (Microsoft.Sql/servers)
+    # Azure Cosmos DB for MongoDB account (Microsoft.DocumentDB/databaseAccounts)
+    cosmon = {
+      min_length = 3
+      max_length = 44
+      pattern    = local.regexp_patterns.alnum_hyphen_start_alnum
+    }
+
+    # Azure Cosmos DB database (Microsoft.DocumentDB/databaseAccounts)
+    cosmos = {
+      min_length = 3
+      max_length = 44
+      pattern    = local.regexp_patterns.alnum_hyphen_start_alnum
+    }
+
+    # Azure Cosmos DB for NoSQL account (Microsoft.DocumentDB/databaseAccounts)
+    cosno = {
+      min_length = 3
+      max_length = 44
+      pattern    = local.regexp_patterns.alnum_hyphen_start_alnum
+    }
+
+    # Azure Cosmos DB PostgreSQL cluster (Microsoft.DocumentDB/databaseAccounts)
+    cospos = {
+      min_length = 3
+      max_length = 44
+      pattern    = local.regexp_patterns.alnum_hyphen_start_alnum
+    }
+
+    # Azure Cosmos DB for Table account (Microsoft.DocumentDB/databaseAccounts)
+    costab = {
+      min_length = 3
+      max_length = 44
+      pattern    = local.regexp_patterns.alnum_hyphen_start_alnum
+    }
+
+    # MariaDB server (Microsoft.DBforMariaDB/servers)
+    maria = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # MariaDB database (Microsoft.DBforMariaDB/servers/databases)
+    mariadb = {
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # MySQL database (Microsoft.DBforMySQL/servers)
+    mysql = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # PostgreSQL database (Microsoft.DBforPostgreSQL/servers)
+    psql = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Azure Cache for Redis instance (Microsoft.Cache/Redis)
+    redis = {
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Azure SQL Database server (Microsoft.Sql/servers)
     sql = {
-      max_length = 63,
-      pattern    = "^[a-z0-9-]+$" # Lowercase letters, numbers, and hyphens; Can't start or end with hyphen.
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
     }
 
-    # SQL Database (Microsoft.Sql/servers/databases)
+    # Azure SQL database (Microsoft.Sql/servers/databases)
     sqldb = {
-      max_length = 63,
-      pattern    = "^[a-z0-9-]+$"
+      min_length = 1
+      max_length = 128
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Azure SQL Elastic Pool (Microsoft.Sql/servers/elasticPools)
+    sqlep = {
+      min_length = 1
+      max_length = 128
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Azure SQL Elastic Job agent - no published rule for Sql/servers/jobAgents; follows Sql/servers/databases
+    sqlja = {
+      min_length = 1
+      max_length = 128
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
     }
 
     # SQL Managed Instance (Microsoft.Sql/managedInstances)
     sqlmi = {
-      max_length = 63,
-      pattern    = "^[a-z0-9-]+$"
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
     }
 
-    # Virtual Machine (Microsoft.Compute)
-    vm = {
-      max_length = 64,
-      pattern    = "^[a-z0-9-]+$"
+    # SQL Server Stretch Database (Microsoft.Sql/servers/databases)
+    sqlstrdb = {
+      min_length = 1
+      max_length = 128
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
     }
 
-    # Virtual Machine Scale Set (Microsoft.Compute)
-    vmss = {
-      max_length = 64,
-      pattern    = "^[a-z0-9-]+$"
+    ##### Developer Tools #####
+
+    # App Configuration store (Microsoft.AppConfiguration/configurationStores)
+    appcs = {
+      min_length = 5
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen
     }
 
-    # Virtual Network (Microsoft.Network)
-    vnet = {
-      max_length = 64,
-      pattern    = "^[a-z0-9-]+$"
+    # Maps account (Microsoft.Maps/accounts)
+    map = {
+      min_length = 1
+      max_length = 98
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_start_alnum
+    }
+
+    # SignalR (Microsoft.SignalRService/signalR)
+    sigr = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # WebPubSub - no published rule for SignalRService/webPubSub; follows SignalRService/signalR
+    wps = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    ##### DevOps #####
+
+    # Azure Managed Grafana - no published rule; follows Dashboard/grafana
+    amg = {
+      min_length = 2
+      max_length = 23
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    ##### Integration #####
+
+    # API management service instance (Microsoft.ApiManagement/service)
+    apim = {
+      min_length = 1
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Integration account (Microsoft.Logic/integrationAccounts)
+    ia = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_paren_us_hyphen
+    }
+
+    # Logic app (Microsoft.Logic/workflows)
+    logic = {
+      min_length = 1
+      max_length = 43
+      pattern    = local.regexp_patterns.alnum_dot_paren_us_hyphen
+    }
+
+    # Service Bus namespace (Microsoft.ServiceBus/namespaces)
+    sbns = {
+      min_length = 6
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Service Bus queue (Microsoft.ServiceBus/namespaces/queues)
+    sbq = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_slash_us_hyphen_ends_alnum
+    }
+
+    # Service Bus topic (Microsoft.ServiceBus/namespaces/topics)
+    sbt = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_slash_us_hyphen_ends_alnum
+    }
+
+    # Service Bus topic subscription (Microsoft.ServiceBus/namespaces/topics/subscriptions)
+    sbts = {
+      min_length = 1
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_ends_alnum
+    }
+
+    ##### Management and Governance #####
+
+    # Automation account (Microsoft.Automation/automationAccounts)
+    aa = {
+      min_length = 6
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Azure Monitor action group (Microsoft.Insights/actionGroups)
+    ag = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Application Insights (Microsoft.Insights/components)
+    appi = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Azure Monitor alert processing rule - no published rule for AlertsManagement/actionRules; follows Insights/actionGroups
+    apr = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Blueprint (planned for deprecation) (Microsoft.Blueprint/blueprint)
+    bp = {
+      min_length = 1
+      max_length = 90
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Blueprint (planned for deprecation) (Microsoft.Blueprint/blueprintAssignments)
+    bpa = {
+      min_length = 1
+      max_length = 90
+      pattern    = local.regexp_patterns.alnum_us_hyphen
+    }
+
+    # Data collection endpoint - no published rule; follows Insights/dataCollectionEndpoints
+    dce = {
+      min_length = 1
+      max_length = 44
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Azure Monitor data collection rule - no published rule; follows Insights/dataCollectionRules
+    dcr = {
+      min_length = 1
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Log Analytics workspace (Microsoft.OperationalInsights/workspaces)
+    log = {
+      min_length = 4
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Management group (Microsoft.Management/managementgroups)
+    mg = {
+      min_length = 1
+      max_length = 90
+      pattern    = local.regexp_patterns.alnum_dot_paren_us_hyphen_start_alnum
+    }
+
+    # Log Analytics query packs - no published rule; follows OperationalInsights/queryPacks
+    pack = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Azure Policy definition (no standard short form provided; can be left descriptive) (Microsoft.Authorization/policyDefinitions)
+    policy = {
+      min_length = 1
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Microsoft Purview instance - no published rule; follows Purview/accounts
+    pview = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Resource group (Microsoft.Resources/resourcegroups)
+    rg = {
+      min_length = 1
+      max_length = 90
+      pattern    = local.regexp_patterns.alnum_dot_paren_us_hyphen_ends_alnum
+    }
+
+    # Template specs name (Microsoft.Resources/templateSpecs)
+    ts = {
+      min_length = 1
+      max_length = 90
+      pattern    = local.regexp_patterns.alnum_dot_paren_us_hyphen
+    }
+
+    ##### Migration #####
+
+    # Database Migration Service instance (Microsoft.DataMigration/services)
+    dms = {
+      min_length = 2
+      max_length = 62
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_start_alnum
+    }
+
+    # Azure Migrate project - no published rule; follows Migrate/migrateProjects
+    migr = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Recovery Services vault (Microsoft.RecoveryServices/vaults)
+    rsv = {
+      min_length = 2
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter
+    }
+
+    ##### Networking #####
+
+    # Front Door (Standard/Premium) profile (Microsoft.Network/frontDoors)
+    afd = {
+      min_length = 5
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Firewall (Microsoft.Network/azureFirewalls)
+    afw = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Firewall policy (Microsoft.Network/firewallPolicies)
+    afwp = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Application gateway (Microsoft.Network/applicationGateways)
+    agw = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Application security group (ASG) (Microsoft.Network/applicationSecurityGroups)
+    asg = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # CDN endpoint (Microsoft.Cdn/profiles/endpoints)
+    cdne = {
+      min_length = 1
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # CDN profile (Microsoft.Cdn/profiles)
+    cdnp = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Connections (Microsoft.Network/connections)
+    con = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # DNS – (Note: Abbreviation may be customized per DNS domain name) (Microsoft.Network/dnsZones)
+    dns = {
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.dns_labels
+    }
+
+    # DNS forwarding ruleset (Microsoft.Network/dnsForwardingRuleset)
+    dnsfrs = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_us_hyphen_ends_alnum
+    }
+
+    # DNS private resolver (Microsoft.Network/dnsResolvers)
+    dnspr = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_us_hyphen_ends_alnum
+    }
+
+    # ExpressRoute circuit (Microsoft.Network/expressRouteCircuits)
+    erc = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # ExpressRoute direct - no published rule; follows Network/expressRoutePorts
+    erd = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # ExpressRoute gateway (Microsoft.Network/virtualNetworkGateways)
+    ergw = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Front Door (Standard/Premium) endpoint (Microsoft.Cdn/profiles/endpoints)
+    fde = {
+      min_length = 1
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # Front Door firewall policy (Microsoft.Network/frontdoorWebApplicationFirewallPolicies)
+    fdfp = {
+      min_length = 1
+      max_length = 128
+      pattern    = local.regexp_patterns.alnum_start_letter
+    }
+
+    # DNS private resolver inbound endpoint (Microsoft.Network/dnsResolvers/inboundEndpoints)
+    in = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_us_hyphen_ends_alnum
+    }
+
+    # IP group - no published rule; follows Network/ipGroups
+    ipg = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Public IP address prefix (Microsoft.Network/publicIPPrefixes)
+    ippre = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Load balancer (external) (Microsoft.Network/loadBalancers)
+    lbe = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Load balancer (internal) (Microsoft.Network/loadBalancers)
+    lbi = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Local network gateway (Microsoft.Network/localNetworkGateways)
+    lgw = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # NAT gateway - no published rule; follows Network/natGateways
+    ng = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Network security group (NSG) (Microsoft.Network/networkSecurityGroups)
+    nsg = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # NSG security rules (Microsoft.Network/networkSecurityGroups/securityRules)
+    nsgsr = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Network Watcher (Microsoft.Network/networkWatchers)
+    nw = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # DNS private resolver outbound endpoint (Microsoft.Network/dnsResolvers/outboundEndpoints)
+    out = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_us_hyphen_ends_alnum
+    }
+
+    # Virtual network peering (Microsoft.Network/virtualNetworks/virtualNetworkPeerings)
+    peer = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Private endpoint (Microsoft.Network/privateEndpoints)
+    pep = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Private Link (Microsoft.Network/privateLinkServices)
+    pl = {
+      min_length = 2
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Route filter (Microsoft.Network/routeFilters)
+    rf = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Route table (Microsoft.Network/routeTables)
+    rt = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Route server - no published rule; follows Network/virtualHubs routeServers
+    rtserv = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Load balancer rule (Microsoft.Network/loadBalancers/inboundNatRules)
+    rule = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Service endpoint policy (Microsoft.Network/serviceEndpointPolicies)
+    se = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual network subnet (Microsoft.Network/virtualnetworks/subnets)
+    snet = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Traffic Manager profile (Microsoft.Network/trafficmanagerprofiles)
+    traf = {
+      min_length = 1
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen_ends_alnum
+    }
+
+    # User defined route (UDR) (Microsoft.Network/routeTables/routes)
+    udr = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual network gateway (Microsoft.Network/virtualNetworkGateways)
+    vgw = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual WAN Hub - no published rule; follows Network/virtualHubs
+    vhub = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual network manager - no published rule; follows Network/networkManagers
+    vnm = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual WAN (Microsoft.Network/virtualWans)
+    vwan = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    ##### Security #####
+
+    # Azure Bastion (Microsoft.Network/bastionHosts)
+    bas = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Managed identity (Microsoft.ManagedIdentity/userAssignedIdentities)
+    id = {
+      min_length = 3
+      max_length = 128
+      pattern    = local.regexp_patterns.alnum_us_hyphen_start_alnum
+    }
+
+    # Key vault (Microsoft.KeyVault/vaults)
+    kv = {
+      min_length = 3
+      max_length = 24
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Key Vault Managed HSM - no published rule for KeyVault/managedHSMs; follows KeyVault/vaults
+    kvmhsm = {
+      min_length = 3
+      max_length = 24
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # SSH key - no published rule; follows Compute/sshPublicKeys
+    sshkey = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # VPN connection (Microsoft.Network/vpnGateways/vpnConnections)
+    vcn = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # VPN Gateway (Microsoft.Network/vpnGateways)
+    vpng = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # VPN site (Microsoft.Network/vpnSites)
+    vst = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Web Application Firewall (WAF) policy (Microsoft.Network/frontdoorWebApplicationFirewallPolicies)
+    waf = {
+      min_length = 1
+      max_length = 128
+      pattern    = local.regexp_patterns.alnum_start_letter
+    }
+
+    # Web Application Firewall (WAF) policy rule group (Microsoft.Network/firewallPolicies/ruleGroups)
+    wafrg = {
+      min_length = 1
+      max_length = 80
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    ##### Storage #####
+
+    # Backup Vault policy (Microsoft.DataProtection/backupVaults/backupPolicies)
+    bkpol = {
+      min_length = 1
+      max_length = 75
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Backup Vault name (Microsoft.DataProtection/backupVaults)
+    bvault = {
+      min_length = 2
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter
+    }
+
+    # File share (Microsoft.FileShares/file share)
+    share = {
+      min_length = 3
+      max_length = 63
+      pattern    = local.regexp_patterns.alnum_hyphen
+    }
+
+    # Azure StorSimple (Microsoft.StorSimple/managers)
+    ssimp = {
+      min_length = 2
+      max_length = 50
+      pattern    = local.regexp_patterns.alnum_hyphen_start_letter_end_alnum
+    }
+
+    # Storage Sync Service name (Microsoft.StorageSync/storageSyncServices)
+    sss = {
+      min_length = 1
+      max_length = 260
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    ##### Virtual Desktop Infrastructure #####
+
+    # Virtual desktop application group (Microsoft.DesktopVirtualization/applicationGroups)
+    vdag = {
+      min_length = 3
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual desktop host pool (Microsoft.DesktopVirtualization/hostPools)
+    vdpool = {
+      min_length = 3
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual desktop scaling plan - no published rule for DesktopVirtualization/scalingPlans; follows DesktopVirtualization/workspaces
+    vdscaling = {
+      min_length = 3
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
+    }
+
+    # Virtual desktop workspace (Microsoft.DesktopVirtualization/workspaces)
+    vdws = {
+      min_length = 3
+      max_length = 64
+      pattern    = local.regexp_patterns.alnum_dot_us_hyphen_end_alnum_us
     }
   }
 
+
   # Lookup the constraints for the current resource.
   constraints     = lookup(local.validation_map, local.resourceAbbr, local.validation_map["default"])
+  name_min_length = local.constraints.min_length
   name_max_length = local.constraints.max_length
   name_pattern    = local.constraints.pattern
 }

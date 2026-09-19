@@ -1,6 +1,6 @@
 module "test_cosmos_minimal" {
   source          = "../../"
-  resource_type   = "cosmosdb"  # maps to "cosmos"
+  resource_type   = "cosmosdb" # maps to "cosmos"
   application     = ""
   workload        = ""
   environment     = ""

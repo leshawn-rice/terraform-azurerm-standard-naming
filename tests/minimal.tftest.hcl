@@ -71,8 +71,8 @@ run "test_acr_minimal" {
   }
 
   assert {
-    condition     = module.test_acr_minimal.name == "cr"
-    error_message = "Expected minimal Container Registry name to be 'cr', got '${module.test_acr_minimal.name}'."
+    condition     = module.test_acr_minimal.name == "crdev"
+    error_message = "Expected minimal Container Registry name to be 'crdev001', got '${module.test_acr_minimal.name}'."
   }
 }
 
@@ -136,8 +136,8 @@ run "test_storage_account_minimal" {
   }
 
   assert {
-    condition     = module.test_storage_account_minimal.name == "st"
-    error_message = "Expected minimal Storage Account name to be 'st', got '${module.test_storage_account_minimal.name}'."
+    condition     = module.test_storage_account_minimal.name == "stdev001"
+    error_message = "Expected minimal Storage Account name to be 'stdev001', got '${module.test_storage_account_minimal.name}'."
   }
 }
 

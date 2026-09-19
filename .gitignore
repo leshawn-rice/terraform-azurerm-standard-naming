@@ -1,1 +1,10 @@
-.terraform*
+.terraform/
+.terraform.lock.hcl
+.terraform.tfstate*
+*.tfstate
+*.tfstate.backup
+.terraform.tfplan
+crash.log
+
+# Local tooling config; not published with the module.
+.terraform-docs.yml

@@ -1,6 +1,6 @@
 module "test_pip_minimal" {
   source          = "../../"
-  resource_type   = "publicip"  # maps to "pip"
+  resource_type   = "publicip" # maps to "pip"
   application     = ""
   workload        = ""
   environment     = ""

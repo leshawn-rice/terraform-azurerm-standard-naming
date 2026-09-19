@@ -1,6 +1,6 @@
 module "test_vnet_minimal" {
   source          = "../../"
-  resource_type   = "virtualnetwork"  # maps to "vnet"
+  resource_type   = "virtualnetwork" # maps to "vnet"
   application     = ""
   workload        = ""
   environment     = ""

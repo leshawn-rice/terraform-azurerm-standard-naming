@@ -1,6 +1,11 @@
 output "is_name_valid" {
   value       = true
-  description = "Boolean indicating whether the name is valid. Will throw an error if the name is not valid."
+  description = "Always `true`. The preconditions on this output enforce the minimum length, maximum length and character pattern for the resource type, so an invalid name fails the plan rather than returning `false`."
+
+  precondition {
+    condition     = length(local.name) >= local.name_min_length
+    error_message = "The resource name '${local.name}' is shorter than the minimum of ${local.name_min_length} characters for resource type '${var.resource_type}'."
+  }
 
   precondition {
     condition     = length(local.name) <= local.name_max_length
@@ -15,5 +20,5 @@ output "is_name_valid" {
 
 output "name" {
   value       = local.name
-  description = "The final generated resource name in the format `<resource_type>-<business-unit>-<application>-<workload>-<environment>-<location>-<instance_number>`."
+  description = "The generated resource name, in the form `<abbreviation>-<business_unit>-<application>-<workload>-<environment>-<location>-<instance_number>`. Empty segments are dropped, and the separator is omitted entirely for resource types that disallow hyphens (e.g. storage accounts)."
 }

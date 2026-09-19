@@ -1,6 +1,6 @@
 module "test_sql_minimal" {
   source          = "../../"
-  resource_type   = "sqlserver"  # maps to "sql"
+  resource_type   = "sqlserver" # maps to "sql"
   application     = ""
   workload        = ""
   environment     = ""

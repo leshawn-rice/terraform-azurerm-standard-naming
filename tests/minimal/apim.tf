@@ -1,6 +1,6 @@
 module "test_apim_minimal" {
   source          = "../../"
-  resource_type   = "apimanagement"  # maps to "apim"
+  resource_type   = "apimanagement" # maps to "apim"
   application     = ""
   workload        = ""
   environment     = ""
